@@ -2,23 +2,29 @@ import torch
 from vgg19 import VGG19
 from tqdm import tqdm
 import utils
+import os
 
 
 class TextureSynthesisCNN:
-    def __init__(self, texture_exemplar_image: torch.Tensor, texture_output_image: torch.Tensor,device):
+    def __init__(self, tex_exemplar_path, device):
         """
-        :param texture_exemplar_image: ideal texture image w.r.t which we are synthesizing our textures
-        :param texture_output_image: the initial random noise output which we will optimize
+        :param tex_exemplar_path: ideal texture image w.r.t which we are synthesizing our textures
         :param device: torch device - cuda or cpu
         """
+        self.device = device
+        self.tex_exemplar_name = os.path.splitext(os.path.basename(tex_exemplar_path))[0]
+
+        # init VGGs
+        self.vgg_exemplar = VGG19(freeze_weights=True, device=device)  # vgg to generate ideal feature maps
+        self.vgg_synthesis = VGG19(freeze_weights=False, device=device)  # vgg whose weights will be trained
+
         # calculate and save gram matrices for the texture exemplar once (as this does not change)
-        vgg_exemplar = VGG19(freeze_weights=True, device=device)
-        feature_maps_ideal = vgg_exemplar(texture_exemplar_image)
+        self.tex_exemplar_image = utils.load_image_tensor(tex_exemplar_path).to(device)  # "path" -> Tensor
+        feature_maps_ideal = self.vgg_exemplar(self.tex_exemplar_image)
         self.gram_matrices_ideal = utils.calculate_gram_matrices(feature_maps_ideal)
 
-        # vgg whose weights will be trained
-        self.vgg_synthesis = VGG19(freeze_weights=False, device=device)
-        self.output_image = texture_output_image
+        # set up the initial random noise image output which the network will optimize
+        self.output_image = torch.randn_like(self.tex_exemplar_image).to(device)
         self.output_image.requires_grad = True  # set to True so that the rand noise image can be optimized
 
         self.optimizer = torch.optim.LBFGS([self.output_image])
@@ -26,7 +32,7 @@ class TextureSynthesisCNN:
 
         self.losses = []
 
-    def optimize(self, num_epochs=100, checkpoint=25):
+    def optimize(self, num_epochs=100, checkpoint=5):
         """
         Perform num_epochs steps of L-BFGS algorithm
         """
@@ -50,7 +56,7 @@ class TextureSynthesisCNN:
 
             if (epoch + 1) % checkpoint == 0:
                 utils.save_image_tensor(self.output_image.clone().detach().cpu(),
-                                        output_dir="intermediate_outputs/",
+                                        output_dir=f"intermediate_outputs_{self.tex_exemplar_name}/",
                                         image_name=f"output_at_epoch_{epoch_offset + epoch + 1:0>6}.png")
 
         return self.output_image.detach().cpu()
@@ -73,3 +79,48 @@ class TextureSynthesisCNN:
 
         # loss = w1*E1 + w2*E2 + ... + w5*E5
         return loss
+
+    def update_texture_exemplar(self, new_tex_exemplar_path):
+        """
+        Keeps the output_image the same, but updates the existing tex exemplar to the provided tex exemplar image path
+        As such, the ideal gram matrices need to be re-calculated for the new tex exemplar image
+        """
+        # make the last texture synth output the output image
+        self.output_image = self.output_image.clone().detach().to(self.device)
+        self.output_image.requires_grad = True
+        self.optimizer = torch.optim.LBFGS([self.output_image])
+
+        # update old texture exemplar to new tex exemplar
+        self.tex_exemplar_name = os.path.splitext(os.path.basename(new_tex_exemplar_path))[0]
+        self.tex_exemplar_image = utils.load_image_tensor(new_tex_exemplar_path).to(self.device)  # "path" -> Tensor
+
+        # calculate and save gram matrices for the new texture exemplar
+        feature_maps_ideal = self.vgg_exemplar(self.tex_exemplar_image)
+        self.gram_matrices_ideal = utils.calculate_gram_matrices(feature_maps_ideal)
+
+    def synthesize_texture(self, num_epochs=100, checkpoint=5, display_when_done=True):
+        """
+        - Can be called multiple times to generate different textures
+        - Resets the output_image to random noise and runs the optimizer again. Each time the optimizer starts off from a
+        random noise image, the network optimizes/synthesizes the tex exemplar in a slightly different way.
+        """
+        self.output_image = torch.randn_like(self.tex_exemplar_image).to(self.device)  # make the last texture synth output the output image
+        self.output_image.requires_grad = True
+        self.optimizer = torch.optim.LBFGS([self.output_image])
+
+        synthesized_texture = self.optimize(num_epochs=num_epochs, checkpoint=checkpoint)
+        if display_when_done: utils.display_image_tensor(synthesized_texture)
+
+        return synthesized_texture
+
+    def save_and_display_texture(self, output_dir="./results/"):
+        """
+        Saves and displays the current tex_exemplar_image and the output_image tensors that this model holds
+        """
+        utils.save_image_tensor(self.tex_exemplar_image.cpu(),
+                                output_dir=output_dir,
+                                image_name=f"exemplar_{self.tex_exemplar_name}.png").show()
+        print()
+        utils.save_image_tensor(self.output_image.detach().cpu(),
+                                output_dir=output_dir,
+                                image_name=f"synth_{self.tex_exemplar_name}.png").show()

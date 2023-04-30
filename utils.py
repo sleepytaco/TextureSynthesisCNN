@@ -36,6 +36,12 @@ def save_image_tensor(tensor, output_dir="./", image_name="output.png"):
 
     return output_image
 
+def display_image_tensor(tensor):
+    output_image = tensor.numpy().transpose(1, 2, 0)
+    output_image = np.clip(output_image, 0, 1) * 255
+    output_image = output_image.astype(np.uint8)
+    output_image = Image.fromarray(output_image)
+    output_image.show()
 
 def reparametrize_image(image):
     min_val = image.min()
