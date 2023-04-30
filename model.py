@@ -1,16 +1,23 @@
 import torch
-from torchvision.models import vgg16, VGG16_Weights, vgg19
+from torch import nn
+from torchvision.models import VGG19_Weights, vgg19
+from tqdm import tqdm
+
 import utils
 
 
-class VGG16:
+class VGG19:
     def __init__(self, freeze_weights, device):
         """
         :param freeze_weights: If True, the gradients for the VGG params are turned off
         :param device: Torch device - cuda or cpu
         """
-        self.model = vgg16(weights=VGG16_Weights(VGG16_Weights.DEFAULT)).to(device)
-        self.important_layers = [4, 9, 16, 23, 30]  # layers at which there is a MaxPool/AvgPool
+        self.model = vgg19(weights=VGG19_Weights(VGG19_Weights.DEFAULT)).to(device)
+        # self.important_layers = [0, 4, 9, 16, 23]  # vgg16 layers at which there is a MaxPool
+        self.important_layers = [0, 4, 9, 18, 27]  # vgg19 layers [convlayer1, maxpool, maxpool, maxpool, maxpool]
+        for layer in self.important_layers[1:]:  # convert the maxpool layers to an avgpool
+            self.model.features[layer] = nn.AvgPool2d(kernel_size=2, stride=2)
+
         self.feature_maps = []
         for param in self.model.parameters():
             if freeze_weights:
@@ -42,22 +49,20 @@ class TextureSynthesisCNN:
         :param device: torch device - cuda or cpu
         """
         # calculate and save gram matrices for the texture exemplar once (as this does not change)
-        vgg_exemplar = VGG16(freeze_weights=True, device=device)
+        vgg_exemplar = VGG19(freeze_weights=True, device=device)
         feature_maps_ideal = vgg_exemplar(texture_exemplar_image)
         self.gram_matrices_ideal = utils.calculate_gram_matrices(feature_maps_ideal)
 
         # vgg whose weights will be trained
         self.output_image = torch.randn_like(texture_exemplar_image).to(device)  # output image is initially a random noise image
         self.output_image.requires_grad = True  # set to True so that the rand noise image can be optimized
-        self.vgg_synthesis = VGG16(freeze_weights=False, device=device)
+        self.vgg_synthesis = VGG19(freeze_weights=False, device=device)
 
         self.optimizer = torch.optim.LBFGS([self.output_image])
-        self.layer_weights = [10 ** 9, 10 ** 9, 10 ** 9, 10 ** 9, 10 ** 9]
+        self.layer_weights = [10**9, 10**9, 10**9, 10**9, 10**9]
 
         self.losses = []
         self.intermediate_synth_images = []
-
-        self.reparametrization_function = utils.reparametrize_image(texture_exemplar_image)
 
     def optimize(self, num_epochs=100):
         """
@@ -65,18 +70,25 @@ class TextureSynthesisCNN:
         """
         self.losses = []
         # self.intermediate_synth_images = []
+        progress_bar = tqdm(total=10, desc="Optimizing...")
 
-        for epoch in range(num_epochs):
+        for _ in range(num_epochs):
             epoch_loss = self.get_loss().item()
-            print(f"Epoch {epoch}: Loss - {epoch_loss}")
+            # print(f"Epoch {epoch+1}: Loss - {epoch_loss}")
+            progress_bar.update(1)
+            progress_bar.set_description(f"Epoch Loss - {epoch_loss} ")
+
             def closure():
                 self.optimizer.zero_grad()
                 loss = self.get_loss()  # 1. passes output_img through vgg_synth, 2. returns loss
                 loss.backward()
                 return loss
+
             self.optimizer.step(closure)
             self.losses.append(epoch_loss)
             # self.intermediate_synth_images.append(self.output_image.clone().detach().cpu())
+
+        progress_bar.set_description("Done! ")
 
         return self.output_image.detach().cpu()
 
