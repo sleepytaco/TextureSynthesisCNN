@@ -53,6 +53,8 @@ class TextureSynthesisCNN:
         self.losses = []
         self.intermediate_synth_images = []
 
+        self.reparametrization_function = self.reparametrize_image(texture_exemplar_image)
+
     def optimize(self, num_epochs=50):
         self.losses = []
         # self.intermediate_synth_images = []
@@ -82,6 +84,11 @@ class TextureSynthesisCNN:
             loss += E
 
         return loss
+    
+    def reparametrize_image(self, image):
+        min_val = image.min()
+        val_range = image.max() - min_val
+        return lambda x: ((1.0 / (1.0 + torch.exp(-x))) * val_range) + min_val
 
 
 
