@@ -1,5 +1,5 @@
 import torch
-from torchvision.models import vgg16, VGG16_Weights
+from torchvision.models import vgg16, VGG16_Weights, vgg19
 
 
 def calculate_gram_matrices(feature_maps):
@@ -33,32 +33,47 @@ class VGG16:
 
 
 class TextureSynthesisCNN:
-    def __init__(self, texture_exemplar_image, layer_weights):
-        # calculate and save gram matrices for the texture exemplar (as this does not change)
+    def __init__(self, texture_exemplar_image):
+
+        # calculate and save gram matrices for the texture exemplar once (as this does not change)
         self.texture_exemplar_image = texture_exemplar_image  # ideal texture image w.r.t which we are synthesizing our textures
         vgg_exemplar = VGG16(freeze_weights=True)
         feature_maps_ideal = vgg_exemplar(texture_exemplar_image)
         self.gram_matrices_ideal = calculate_gram_matrices(feature_maps_ideal)
 
         # vgg whose weights will be trained
-        self.texture_synthesis_image = torch.randn_like(texture_exemplar_image)  # the random noise image we pass in
+        self.output_image = torch.randn_like(texture_exemplar_image)  # output image is initially a random noise image
+        self.output_image.requires_grad = True  # set to True so that the rand noise image can be optimized
         self.vgg_synthesis = VGG16(freeze_weights=False)
 
-        self.layer_weights = layer_weights
+        self.optimizer = torch.optim.LBFGS([self.output_image])
+        self.layer_weights = [10 ** 9, 10 ** 9, 10 ** 9, 10 ** 9, 10 ** 9]
 
     def optimize(self, num_epochs=10):
-        pass
-
-    def get_loss(self):
         losses = []
+        intermediate_synth_images = []
 
-        feature_maps_pred = self.vgg_synthesis(self.texture_synthesis_image)
+        def closure():
+            self.optimizer.zero_grad()
+            loss = self.get_loss()  # 1. passes output_img through vgg_synth, 2. returns loss
+            loss.backward()
+            return loss
+
+        for epoch in range(num_epochs):
+            self.optimizer.step(closure)
+
+        return self.output_image.detach().cpu()
+
+    def get_loss(self) -> torch.Tensor:
+        loss = torch.Tensor(0)
+
+        feature_maps_pred = self.vgg_synthesis(self.output_image)
         gram_matrices_pred = calculate_gram_matrices(feature_maps_pred)
         for i, gm_ideal, gm_pred in enumerate(zip(self.gram_matrices_ideal, gram_matrices_pred)):
             E = self.layer_weights[i] * ((gm_ideal - gm_pred) ** 2).sum()
-            losses.append(E)
+            loss += E
 
-        return torch.sum(losses)
+        return loss
 
 
 
