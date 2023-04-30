@@ -1,5 +1,6 @@
 import torch
 from torchvision.models import vgg16, VGG16_Weights, vgg19
+from tqdm import tqdm
 
 
 def calculate_gram_matrices(feature_maps):
@@ -49,9 +50,12 @@ class TextureSynthesisCNN:
         self.optimizer = torch.optim.LBFGS([self.output_image])
         self.layer_weights = [10 ** 9, 10 ** 9, 10 ** 9, 10 ** 9, 10 ** 9]
 
-    def optimize(self, num_epochs=10):
-        losses = []
-        intermediate_synth_images = []
+        self.losses = []
+        self.intermediate_synth_images = []
+
+    def optimize(self, num_epochs=50):
+        self.losses = []
+        # self.intermediate_synth_images = []
 
         def closure():
             self.optimizer.zero_grad()
@@ -61,6 +65,10 @@ class TextureSynthesisCNN:
 
         for epoch in range(num_epochs):
             self.optimizer.step(closure)
+            epoch_loss = self.get_loss()
+            self.losses.append(epoch_loss)
+            # self.intermediate_synth_images.append(self.output_image.clone().detach().cpu())
+            print(f"Epoch {epoch}: Loss - {epoch_loss}")
 
         return self.output_image.detach().cpu()
 
