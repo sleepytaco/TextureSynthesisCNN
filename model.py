@@ -1,9 +1,6 @@
 import torch
 from torchvision.models import vgg16, VGG16_Weights, vgg19
-
-
-def calculate_gram_matrices(feature_maps):
-    return list(map(lambda x: torch.mm(x, x.t()), feature_maps))
+import utils
 
 
 class VGG16:
@@ -39,7 +36,7 @@ class VGG16:
 
 
 class TextureSynthesisCNN:
-    def __init__(self, texture_exemplar_image, device):
+    def __init__(self, texture_exemplar_image: torch.Tensor, device):
         """
         :param texture_exemplar_image: ideal texture image w.r.t which we are synthesizing our textures
         :param device: torch device - cuda or cpu
@@ -47,10 +44,10 @@ class TextureSynthesisCNN:
         # calculate and save gram matrices for the texture exemplar once (as this does not change)
         vgg_exemplar = VGG16(freeze_weights=True, device=device)
         feature_maps_ideal = vgg_exemplar(texture_exemplar_image)
-        self.gram_matrices_ideal = calculate_gram_matrices(feature_maps_ideal)
+        self.gram_matrices_ideal = utils.calculate_gram_matrices(feature_maps_ideal)
 
         # vgg whose weights will be trained
-        self.output_image = torch.randn_like(texture_exemplar_image)  # output image is initially a random noise image
+        self.output_image = torch.randn_like(texture_exemplar_image).to(device)  # output image is initially a random noise image
         self.output_image.requires_grad = True  # set to True so that the rand noise image can be optimized
         self.vgg_synthesis = VGG16(freeze_weights=False, device=device)
 
@@ -60,7 +57,7 @@ class TextureSynthesisCNN:
         self.losses = []
         self.intermediate_synth_images = []
 
-        self.reparametrization_function = self.reparametrize_image(texture_exemplar_image)
+        self.reparametrization_function = utils.reparametrize_image(texture_exemplar_image)
 
     def optimize(self, num_epochs=100):
         """
@@ -76,8 +73,8 @@ class TextureSynthesisCNN:
             return loss
 
         for epoch in range(num_epochs):
-            self.optimizer.step(closure)
             epoch_loss = self.get_loss()
+            self.optimizer.step(closure)
             self.losses.append(epoch_loss)
             # self.intermediate_synth_images.append(self.output_image.clone().detach().cpu())
             print(f"Epoch {epoch}: Loss - {epoch_loss}")
@@ -92,17 +89,9 @@ class TextureSynthesisCNN:
         loss = torch.Tensor(0)
 
         feature_maps_pred = self.vgg_synthesis(self.output_image)
-        gram_matrices_pred = calculate_gram_matrices(feature_maps_pred)
+        gram_matrices_pred = utils.calculate_gram_matrices(feature_maps_pred)
         for i, gm_ideal, gm_pred in enumerate(zip(self.gram_matrices_ideal, gram_matrices_pred)):
             E = self.layer_weights[i] * ((gm_ideal - gm_pred) ** 2).sum()
             loss += E
 
         return loss
-    
-    def reparametrize_image(self, image):
-        min_val = image.min()
-        val_range = image.max() - min_val
-        return lambda x: ((1.0 / (1.0 + torch.exp(-x))) * val_range) + min_val
-
-
-
