@@ -8,6 +8,10 @@ def calculate_gram_matrices(feature_maps):
 
 class VGG16:
     def __init__(self, freeze_weights, device):
+        """
+        :param freeze_weights: If True, the gradients for the VGG params are turned off
+        :param device: Torch device - cuda or cpu
+        """
         self.model = vgg16(weights=VGG16_Weights(VGG16_Weights.DEFAULT)).to(device)
         self.important_layers = [4, 9, 16, 23, 30]  # layers at which there is a MaxPool/AvgPool
         self.feature_maps = []
@@ -19,7 +23,8 @@ class VGG16:
 
     def __call__(self, x):
         """
-        Take in image and return feature map outputs at each of the important layers of VGG
+        Take in image, pass it through the VGG, and capture feature map outputs at each of the important layers of VGG
+        Return a list of feature maps
         """
         self.feature_maps = []
         for index, layer in enumerate(self.model.features):
@@ -28,15 +33,18 @@ class VGG16:
                 print(layer)
                 self.feature_maps.append(x)
             if index == self.important_layers[-1]:
+                # stop VGG execution as we've captured the feature maps from all the important layers
                 break
         return self.feature_maps
 
 
 class TextureSynthesisCNN:
     def __init__(self, texture_exemplar_image, device):
-
+        """
+        :param texture_exemplar_image: ideal texture image w.r.t which we are synthesizing our textures
+        :param device: torch device - cuda or cpu
+        """
         # calculate and save gram matrices for the texture exemplar once (as this does not change)
-        self.texture_exemplar_image = texture_exemplar_image  # ideal texture image w.r.t which we are synthesizing our textures
         vgg_exemplar = VGG16(freeze_weights=True, device=device)
         feature_maps_ideal = vgg_exemplar(texture_exemplar_image)
         self.gram_matrices_ideal = calculate_gram_matrices(feature_maps_ideal)
@@ -55,6 +63,9 @@ class TextureSynthesisCNN:
         self.reparametrization_function = self.reparametrize_image(texture_exemplar_image)
 
     def optimize(self, num_epochs=100):
+        """
+        Perform num_epochs steps of L-BFGS algorithm
+        """
         self.losses = []
         # self.intermediate_synth_images = []
 
@@ -74,6 +85,10 @@ class TextureSynthesisCNN:
         return self.output_image.detach().cpu()
 
     def get_loss(self) -> torch.Tensor:
+        """
+        Generates the feature maps for the current output synth image, and uses the ideal feature maps to come up
+        with the loss E at one layer. All the E's are added up to return the overall loss.
+        """
         loss = torch.Tensor(0)
 
         feature_maps_pred = self.vgg_synthesis(self.output_image)
