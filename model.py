@@ -25,9 +25,9 @@ class VGG16:
         """
         self.feature_maps = []
         for index, layer in enumerate(self.model.features):
+            # print(layer)
             x = layer(x)
             if index in self.important_layers:
-                print(layer)
                 self.feature_maps.append(x)
             if index == self.important_layers[-1]:
                 # stop VGG execution as we've captured the feature maps from all the important layers
@@ -66,18 +66,17 @@ class TextureSynthesisCNN:
         self.losses = []
         # self.intermediate_synth_images = []
 
-        def closure():
-            self.optimizer.zero_grad()
-            loss = self.get_loss()  # 1. passes output_img through vgg_synth, 2. returns loss
-            loss.backward()
-            return loss
-
         for epoch in range(num_epochs):
-            epoch_loss = self.get_loss()
+            epoch_loss = self.get_loss().item()
+            print(f"Epoch {epoch}: Loss - {epoch_loss}")
+            def closure():
+                self.optimizer.zero_grad()
+                loss = self.get_loss()  # 1. passes output_img through vgg_synth, 2. returns loss
+                loss.backward()
+                return loss
             self.optimizer.step(closure)
             self.losses.append(epoch_loss)
             # self.intermediate_synth_images.append(self.output_image.clone().detach().cpu())
-            print(f"Epoch {epoch}: Loss - {epoch_loss}")
 
         return self.output_image.detach().cpu()
 
@@ -86,12 +85,13 @@ class TextureSynthesisCNN:
         Generates the feature maps for the current output synth image, and uses the ideal feature maps to come up
         with the loss E at one layer. All the E's are added up to return the overall loss.
         """
-        loss = torch.Tensor(0)
+        loss = 0
 
         feature_maps_pred = self.vgg_synthesis(self.output_image)
         gram_matrices_pred = utils.calculate_gram_matrices(feature_maps_pred)
-        for i, gm_ideal, gm_pred in enumerate(zip(self.gram_matrices_ideal, gram_matrices_pred)):
-            E = self.layer_weights[i] * ((gm_ideal - gm_pred) ** 2).sum()
+
+        for i in range(len(self.layer_weights)):
+            E = self.layer_weights[i] * ((self.gram_matrices_ideal[i] - gram_matrices_pred[i]) ** 2).sum()
             loss += E
 
         return loss
