@@ -21,20 +21,20 @@ def load_image_tensor(path):
     return tensor.float()
 
 
-def save_image_tensor(tensor):
+def save_image_tensor(tensor, output_dir="./", image_name="output.png"):
     """
     Saves a tensor as an image.
     """
-    generated_image = tensor.numpy().transpose(1, 2, 0)
-    generated_image = np.clip(generated_image, 0, 1) * 255
-    generated_image = generated_image.astype(np.uint8)
-    generated_image = Image.fromarray(generated_image)
-    generated_image.save('output.png')
-    return
-    numpy_image = (tensor.numpy()*255).astype(np.uint8)
-    cwd = os.getcwd()
-    filepath = os.path.join(cwd, "output_image.png")
-    io.imsave(filepath, numpy_image)
+    output_image = tensor.numpy().transpose(1, 2, 0)
+    output_image = np.clip(output_image, 0, 1) * 255
+    output_image = output_image.astype(np.uint8)
+    output_image = Image.fromarray(output_image)
+
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    output_image.save(output_dir + image_name)
+
+    return output_image
 
 
 def reparametrize_image(image):
@@ -45,8 +45,8 @@ def reparametrize_image(image):
 
 def calculate_gram_matrices(feature_maps):
     gram_matrices = []
+    b = 1
     for fm in feature_maps:
-        b = 1
         n, x, y = fm.size()
         act = fm.view(b * n, x * y)
         gram_mat = torch.mm(act, act.t())
