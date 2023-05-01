@@ -65,7 +65,8 @@ def get_i_tilde(i, i_hat):
     fourier_i = torch.fft.fft2(i)
     fourier_i_hat = torch.fft.fft2(i_hat)
     conj_fourier_i = torch.conj(fourier_i)
-    result = torch.fft.ifft2((fourier_i_hat * conj_fourier_i)/(torch.abs(fourier_i_hat*conj_fourier_i))*fourier_i)
+    epsilon = 10e-12
+    result = torch.fft.ifft2((fourier_i_hat * conj_fourier_i)/(torch.abs(fourier_i_hat*conj_fourier_i)+epsilon)*fourier_i)
     return result
 
 def get_grayscale(tensor):

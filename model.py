@@ -69,7 +69,7 @@ class TextureSynthesisCNN:
         """
         loss = 0
         i_tilde = utils.get_i_tilde(i_hat=self.output_image, i=self.tex_exemplar_image)
-        i_hat = utils.get_grayscale(self.tex_exemplar_image)
+        i_hat = utils.get_grayscale(self.output_image)
         delta_spe = i_hat - i_tilde
 
 
