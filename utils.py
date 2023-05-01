@@ -58,3 +58,16 @@ def calculate_gram_matrices(feature_maps):
         gram_mat = torch.mm(act, act.t())
         gram_matrices.append(gram_mat.div(b*n*x*y))
     return gram_matrices
+
+def get_i_tilde(i, i_hat):
+    i_hat = get_grayscale(i_hat)
+    i = get_grayscale(i)
+    fourier_i = torch.fft.fft2(i)
+    fourier_i_hat = torch.fft.fft2(i_hat)
+    conj_fourier_i = torch.conj(fourier_i)
+    result = torch.fft.ifft2((fourier_i_hat * conj_fourier_i)/(torch.abs(fourier_i_hat*conj_fourier_i))*fourier_i)
+    return result
+
+def get_grayscale(tensor):
+    transform = transforms.Grayscale()
+    return transform(tensor)

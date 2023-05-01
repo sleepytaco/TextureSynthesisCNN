@@ -1,4 +1,5 @@
 import torch
+from torchvision import transforms
 from vgg19 import VGG19
 from tqdm import tqdm
 import utils
@@ -67,6 +68,9 @@ class TextureSynthesisCNN:
         with the loss E at one layer. All the E's are added up to return the overall loss.
         """
         loss = 0
+        i_tilde = utils.get_i_tilde(i_hat=self.output_image, i=self.tex_exemplar_image)
+        i_hat = utils.get_grayscale(self.tex_exemplar_image)
+
 
         # calculate the gram mats for the output_image at the time the get_loss is called
         feature_maps_pred = self.vgg_synthesis(self.output_image)
