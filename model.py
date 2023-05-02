@@ -6,25 +6,25 @@ import os
 
 
 class TextureSynthesisCNN:
-    def __init__(self, tex_exemplar_path, device):
+    def __init__(self, tex_exemplar_path):
         """
         :param tex_exemplar_path: ideal texture image w.r.t which we are synthesizing our textures
         :param device: torch device - cuda or cpu
         """
-        self.device = device
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.tex_exemplar_name = os.path.splitext(os.path.basename(tex_exemplar_path))[0]
 
         # init VGGs
-        vgg_exemplar = VGG19(freeze_weights=True, device=device)  # vgg to generate ideal feature maps
-        self.vgg_synthesis = VGG19(freeze_weights=False, device=device)  # vgg whose weights will be trained
+        vgg_exemplar = VGG19(freeze_weights=True)  # vgg to generate ideal feature maps
+        self.vgg_synthesis = VGG19(freeze_weights=False)  # vgg whose weights will be trained
 
         # calculate and save gram matrices for the texture exemplar once (as this does not change)
-        self.tex_exemplar_image = utils.load_image_tensor(tex_exemplar_path).to(device)  # image path -> image Tensor
+        self.tex_exemplar_image = utils.load_image_tensor(tex_exemplar_path).to(self.device)  # image path -> image Tensor
         feature_maps_ideal = vgg_exemplar(self.tex_exemplar_image)
         self.gram_matrices_ideal = utils.calculate_gram_matrices(feature_maps_ideal)
 
         # set up the initial random noise image output which the network will optimize
-        self.output_image = torch.randn_like(self.tex_exemplar_image).to(device)
+        self.output_image = torch.randn_like(self.tex_exemplar_image).to(self.device)
         self.output_image.requires_grad = True  # set to True so that the rand noise image can be optimized
 
         self.optimizer = torch.optim.LBFGS([self.output_image])

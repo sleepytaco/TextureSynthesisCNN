@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 from torchvision.models import VGG19_Weights, vgg19
 
@@ -7,11 +8,11 @@ class VGG19:
     Custom version of VGG19 with the maxpool layers replaced with avgpool as per the paper
     VGG19(image_tensor) returns a list of featuremaps at the specified important layers
     """
-    def __init__(self, freeze_weights, device):
+    def __init__(self, freeze_weights):
         """
         :param freeze_weights: If True, the gradients for the VGG params are turned off
-        :param device: Torch device - cuda or cpu
         """
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = vgg19(weights=VGG19_Weights(VGG19_Weights.DEFAULT)).to(device)
         # self.important_layers = [0, 4, 9, 16, 23]  # vgg16 layers at which there is a MaxPool
         self.important_layers = [0, 4, 9, 18, 27, 36]  # vgg19 layers [convlayer1, maxpool, ..., maxpool]
