@@ -36,28 +36,30 @@ def save_image_tensor(tensor, output_dir="./", image_name="output.png"):
 
     return output_image
 
+
 def display_image_tensor(tensor):
+    """
+    Displays the passed in image tensor
+    """
     output_image = tensor.numpy().transpose(1, 2, 0)
     output_image = np.clip(output_image, 0, 1) * 255
     output_image = output_image.astype(np.uint8)
     output_image = Image.fromarray(output_image)
     output_image.show()
 
-def reparametrize_image(image):
-    min_val = image.min()
-    val_range = image.max() - min_val
-    return lambda x: ((1.0 / (1.0 + torch.exp(-x))) * val_range) + min_val
-
 
 def calculate_gram_matrices(feature_maps):
+    """
+    Takes in an array of feature maps and converts each feature map into its gram matrix
+    """
     gram_matrices = []
-    b = 1
     for fm in feature_maps:
         n, x, y = fm.size()
-        act = fm.view(b * n, x * y)
+        act = fm.view(n, x * y)
         gram_mat = torch.mm(act, act.t())
-        gram_matrices.append(gram_mat.div(b*n*x*y))
+        gram_matrices.append(gram_mat.div(4. * n * x * y))
     return gram_matrices
+
 
 def get_i_tilde(i, i_hat):
     i_hat = get_grayscale(i_hat)
@@ -66,9 +68,11 @@ def get_i_tilde(i, i_hat):
     fourier_i_hat = torch.fft.fft2(i_hat)
     conj_fourier_i = torch.conj(fourier_i)
     epsilon = 10e-12
-    result = torch.fft.ifft2((fourier_i_hat * conj_fourier_i)/(torch.abs(fourier_i_hat*conj_fourier_i)+epsilon)*fourier_i)
+    result = torch.fft.ifft2(
+        (fourier_i_hat * conj_fourier_i) / (torch.abs(fourier_i_hat * conj_fourier_i) + epsilon) * fourier_i)
     return result
 
+
 def get_grayscale(tensor):
-    transform = transforms.Grayscale()
-    return transform(tensor)
+    greyscale_transform = transforms.Grayscale()
+    return greyscale_transform(tensor)

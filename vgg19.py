@@ -14,7 +14,7 @@ class VGG19:
         """
         self.model = vgg19(weights=VGG19_Weights(VGG19_Weights.DEFAULT)).to(device)
         # self.important_layers = [0, 4, 9, 16, 23]  # vgg16 layers at which there is a MaxPool
-        self.important_layers = [0, 4, 9, 18, 27]  # vgg19 layers [convlayer1, maxpool, maxpool, maxpool, maxpool]
+        self.important_layers = [0, 4, 9, 18, 27, 36]  # vgg19 layers [convlayer1, maxpool, ..., maxpool]
         for layer in self.important_layers[1:]:  # convert the maxpool layers to an avgpool
             self.model.features[layer] = nn.AvgPool2d(kernel_size=2, stride=2)
 
