@@ -1,5 +1,4 @@
 from model import TextureSynthesisCNN
-import torch
 
 
 def main():
