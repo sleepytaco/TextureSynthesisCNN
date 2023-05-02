@@ -24,7 +24,7 @@ class TextureSynthesisCNN:
         self.gram_matrices_ideal = utils.calculate_gram_matrices(feature_maps_ideal)
 
         # set up the initial random noise image output which the network will optimize
-        self.output_image = torch.randn_like(self.tex_exemplar_image).to(self.device)
+        self.output_image = torch.sigmoid(torch.randn_like(self.tex_exemplar_image)).to(self.device)  # sigmoid to ensure values b/w 0 and 1
         self.output_image.requires_grad = True  # set to True so that the rand noise image can be optimized
 
         self.optimizer = torch.optim.LBFGS([self.output_image])
@@ -97,8 +97,7 @@ class TextureSynthesisCNN:
         - Idea: Each time the optimizer starts off from a random noise image, the network optimizes/synthesizes
           the original tex exemplar in a slightly different way - i.e. introduce variation in the synthesis.
         """
-        self.output_image = torch.randn_like(self.tex_exemplar_image).to(
-            self.device)  # make the last texture synth output the output image
+        self.output_image = torch.sigmoid(torch.randn_like(self.tex_exemplar_image)).to(self.device)  # make the last texture synth output the output image
         self.output_image.requires_grad = True
         self.optimizer = torch.optim.LBFGS([self.output_image])
 
