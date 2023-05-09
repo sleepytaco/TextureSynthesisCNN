@@ -6,17 +6,17 @@ from torchvision.models import VGG19_Weights, vgg19
 class VGG19:
     """
     Custom version of VGG19 with the maxpool layers replaced with avgpool as per the paper
-    VGG19(image_tensor) returns a list of featuremaps at the specified important layers
     """
     def __init__(self, freeze_weights):
         """
-        :param freeze_weights: If True, the gradients for the VGG params are turned off
+        If True, the gradients for the VGG params are turned off
         """
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = vgg19(weights=VGG19_Weights(VGG19_Weights.DEFAULT)).to(device)
-        # self.important_layers = [0, 4, 9, 16, 23]  # vgg16 layers at which there is a MaxPool
-        self.important_layers = [0, 4, 9, 18, 27, 36]  # vgg19 layers [convlayer1, maxpool, ..., maxpool]
-        for layer in self.important_layers[1:]:  # convert the maxpool layers to an avgpool
+
+        # note: added one extra maxpool (layer 36) from the vgg... worked well so kept it in
+        self.output_layers = [0, 4, 9, 18, 27, 36]  # vgg19 layers [convlayer1, maxpool, ..., maxpool]
+        for layer in self.output_layers[1:]:  # convert the maxpool layers to an avgpool
             self.model.features[layer] = nn.AvgPool2d(kernel_size=2, stride=2)
 
         self.feature_maps = []
@@ -28,16 +28,29 @@ class VGG19:
 
     def __call__(self, x):
         """
-        Take in image, pass it through the VGG, and capture feature map outputs at each of the important layers of VGG
-        Return a list of feature maps
+        Take in image, pass it through the VGG, capture feature maps at each of the output layers of VGG
         """
         self.feature_maps = []
         for index, layer in enumerate(self.model.features):
             # print(layer)
-            x = layer(x)
-            if index in self.important_layers:
+            x = layer(x)  # pass the img through the layer to get feature maps of the img
+            if index in self.output_layers:
                 self.feature_maps.append(x)
-            if index == self.important_layers[-1]:
+            if index == self.output_layers[-1]:
                 # stop VGG execution as we've captured the feature maps from all the important layers
                 break
-        return self.feature_maps
+
+        return self
+
+    def get_gram_matrices(self):
+        """
+        Convert the featuremaps captured by the call method into gram matrices
+        """
+        gram_matrices = []
+        for fm in self.feature_maps:
+            n, x, y = fm.size()  # num filters n and (filter dims x and y)
+            F = fm.reshape(n, x * y)  # reshape filterbank into a 2D mat before doing auto correlation
+            gram_mat = (F @ F.t()) / (4. * n * x * y)  # auto corr + normalize by layer output dims
+            gram_matrices.append(gram_mat)
+
+        return gram_matrices

@@ -1,9 +1,12 @@
-import torch
 from PIL import Image
 from torchvision import transforms
 from skimage import io, transform, util
 import numpy as np
 import os
+
+"""
+Contains utility functions to work with images in tensor and jpg/png forms
+"""
 
 
 def load_image_tensor(path):
@@ -23,7 +26,7 @@ def load_image_tensor(path):
 
 def save_image_tensor(tensor, output_dir="./", image_name="output.png"):
     """
-    Saves a tensor as an image.
+    Saves a 3D tensor as an image.
     """
     output_image = tensor.numpy().transpose(1, 2, 0)
     output_image = np.clip(output_image, 0, 1) * 255
@@ -39,7 +42,7 @@ def save_image_tensor(tensor, output_dir="./", image_name="output.png"):
 
 def display_image_tensor(tensor):
     """
-    Displays the passed in image tensor
+    Displays the passed in 3D image tensor
     """
     output_image = tensor.numpy().transpose(1, 2, 0)
     output_image = np.clip(output_image, 0, 1) * 255
@@ -48,31 +51,9 @@ def display_image_tensor(tensor):
     output_image.show()
 
 
-def calculate_gram_matrices(feature_maps):
-    """
-    Takes in an array of feature maps and converts each feature map into its gram matrix
-    """
-    gram_matrices = []
-    for fm in feature_maps:
-        n, x, y = fm.size()
-        act = fm.view(n, x * y)
-        gram_mat = torch.mm(act, act.t())
-        gram_matrices.append(gram_mat.div(4. * n * x * y))
-    return gram_matrices
-
-
-def get_i_tilde(i, i_hat):
-    i_hat = get_grayscale(i_hat)
-    i = get_grayscale(i)
-    fourier_i = torch.fft.fft2(i)
-    fourier_i_hat = torch.fft.fft2(i_hat)
-    conj_fourier_i = torch.conj(fourier_i)
-    epsilon = 10e-12
-    result = torch.fft.ifft2(
-        (fourier_i_hat * conj_fourier_i) / (torch.abs(fourier_i_hat * conj_fourier_i) + epsilon) * fourier_i)
-    return result
-
-
 def get_grayscale(tensor):
+    """
+    Converts a 3D image tensor to greyscale
+    """
     greyscale_transform = transforms.Grayscale()
     return greyscale_transform(tensor)
